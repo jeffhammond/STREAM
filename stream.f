@@ -94,7 +94,7 @@
 *     IMPLICIT NONE
 C     .. Parameters ..
       INTEGER n,offset,ndim,ntimes
-      PARAMETER (n=2000000,offset=0,ndim=n+offset,ntimes=10)
+      PARAMETER (n=20000000,offset=0,ndim=n+offset,ntimes=10)
 C     ..
 C     .. Local Scalars ..
       DOUBLE PRECISION scalar,t
