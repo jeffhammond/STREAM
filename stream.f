@@ -246,7 +246,7 @@ C     ..
  9030 FORMAT (1x,a,i3,a,a)
  9040 FORMAT ('Function',5x,'Rate (MB/s)  Avg time   Min time  Max time'
      $       )
- 9050 FORMAT (a,4 (f10.4,2x))
+ 9050 FORMAT (a,4 (f10.2,2x))
       END
 
 *-------------------------------------

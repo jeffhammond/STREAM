@@ -176,9 +176,15 @@
 #define STREAM_TYPE double
 #endif
 
+#if 0
 static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
 			b[STREAM_ARRAY_SIZE+OFFSET],
 			c[STREAM_ARRAY_SIZE+OFFSET];
+#else
+static STREAM_TYPE      a[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(2097152)));
+static STREAM_TYPE      b[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(2097152)));
+static STREAM_TYPE      c[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(2097152)));
+#endif
 
 static double	avgtime[4] = {0}, maxtime[4] = {0},
 		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
@@ -561,7 +567,7 @@ void tuned_STREAM_Copy()
 void tuned_STREAM_Scale(STREAM_TYPE scalar)
 {
 	ssize_t j;
-#pragma omp parallel for
+#pragma omp parallel for simd
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
 	    b[j] = scalar*c[j];
 }
@@ -569,7 +575,7 @@ void tuned_STREAM_Scale(STREAM_TYPE scalar)
 void tuned_STREAM_Add()
 {
 	ssize_t j;
-#pragma omp parallel for
+#pragma omp parallel for simd
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
 	    c[j] = a[j]+b[j];
 }
@@ -577,7 +583,7 @@ void tuned_STREAM_Add()
 void tuned_STREAM_Triad(STREAM_TYPE scalar)
 {
 	ssize_t j;
-#pragma omp parallel for
+#pragma omp parallel for simd
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
 	    a[j] = b[j]+scalar*c[j];
 }
