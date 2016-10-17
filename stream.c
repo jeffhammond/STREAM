@@ -199,17 +199,20 @@ static STREAM_TYPE      b[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(20971
 static STREAM_TYPE      c[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(2097152)));
 #endif
 
-static double	avgtime[4] = {0}, maxtime[4] = {0}, medtime[4],
-		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
+static double	avgtime[6] = {0}, maxtime[6] = {0}, medtime[6] = {0},
+		mintime[6] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
 
-static char	*label[4] = {"Copy:      ", "Scale:     ",
-    "Add:       ", "Triad:     "};
+static char	*label[6] = {"Copy:      ", "Scale:     ",
+                             "Add:       ", "Triad:     ",
+                             "Read:      ", "Write:     "};
 
-static double	bytes[4] = {
+static double	bytes[6] = {
     2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
     2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
     3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
-    3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
+    3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+    1 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+    1 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
     };
 
 extern double mysecond();
@@ -219,6 +222,8 @@ extern void tuned_STREAM_Copy();
 extern void tuned_STREAM_Scale(STREAM_TYPE scalar);
 extern void tuned_STREAM_Add();
 extern void tuned_STREAM_Triad(STREAM_TYPE scalar);
+extern STREAM_TYPE tuned_STREAM_Read();
+extern void tuned_STREAM_Write(STREAM_TYPE scalar);
 #endif
 #ifdef _OPENMP
 extern int omp_get_num_threads();
@@ -231,7 +236,8 @@ main()
     int			k;
     ssize_t		j;
     STREAM_TYPE		scalar;
-    double		t, times[4][NTIMES];
+    STREAM_TYPE		junk;
+    double		t, times[6][NTIMES];
 
     /* --- SETUP --- determine precision and check timing --- */
 
@@ -327,6 +333,16 @@ main()
     scalar = 3.0;
     for (k=0; k<NTIMES; k++)
 	{
+	times[5][k] = mysecond();
+#ifdef TUNED
+        tuned_STREAM_Write(scalar);
+#else
+#pragma omp parallel for
+	for (j=0; j<STREAM_ARRAY_SIZE; j++)
+	    c[j] = 0.0; //scalar; // set to zero to avoid perturbing validation
+#endif
+	times[5][k] = mysecond() - times[5][k];
+	
 	times[0][k] = mysecond();
 #ifdef TUNED
         tuned_STREAM_Copy();
@@ -366,17 +382,28 @@ main()
 	    a[j] = b[j]+scalar*c[j];
 #endif
 	times[3][k] = mysecond() - times[3][k];
+	
+	times[4][k] = mysecond();
+#ifdef TUNED
+        junk = tuned_STREAM_Read(scalar);
+#else
+        junk = (STREAM_TYPE)0;
+#pragma omp parallel for
+	for (j=0; j<STREAM_ARRAY_SIZE; j++)
+	    junk += a[j];
+#endif
+	times[4][k] = mysecond() - times[4][k];
 	}
 
     /*	--- SUMMARY --- */
 
 #if SORT_TIMES
     printf("sorting times\n");
-    for (j=0; j<4; j++) {
+    for (j=0; j<6; j++) {
         qsort(&(times[j][1]), NTIMES-1, sizeof(double), &cmpdouble);
     }
 #endif
-    for (j=0; j<4; j++) {
+    for (j=0; j<6; j++) {
         k = NTIMES-1;
         if (k % 2) {
             /* odd */
@@ -394,7 +421,7 @@ main()
 
     for (k=1; k<NTIMES; k++) /* note -- skip first iteration */
 	{
-	for (j=0; j<4; j++)
+	for (j=0; j<6; j++)
 	    {
 	    avgtime[j] = avgtime[j] + times[j][k];
 	    mintime[j] = MIN(mintime[j], times[j][k]);
@@ -403,7 +430,7 @@ main()
 	}
     
     printf("Function    Best Rate MB/s  Avg time     Min time     Med time     Max time\n");
-    for (j=0; j<4; j++) {
+    for (j=0; j<6; j++) {
 		avgtime[j] = avgtime[j]/(double)(NTIMES-1);
 
 		printf("%s%12.1f  %11.6f  %11.6f  %11.6f  %11.6f\n", label[j],
@@ -625,6 +652,24 @@ void tuned_STREAM_Triad(STREAM_TYPE scalar)
 #pragma omp parallel for simd
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
 	    a[j] = b[j]+scalar*c[j];
+}
+
+STREAM_TYPE tuned_STREAM_Read()
+{
+	ssize_t j;
+        STREAM_TYPE junk = (STREAM_TYPE)0;
+#pragma omp parallel for simd
+	for (j=0; j<STREAM_ARRAY_SIZE; j++)
+	    junk += c[j];
+        return junk;
+}
+
+void tuned_STREAM_Triad(STREAM_TYPE scalar)
+{
+	ssize_t j;
+#pragma omp parallel for simd
+	for (j=0; j<STREAM_ARRAY_SIZE; j++)
+	    a[i] = scalar;
 }
 /* end of stubs for the "tuned" versions of the kernels */
 #endif
