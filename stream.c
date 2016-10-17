@@ -47,6 +47,19 @@
 # include <limits.h>
 # include <sys/time.h>
 
+/* for qsort */
+#if SORT_TIMES
+#include <stdlib.h>
+static int cmpdouble(const void * ptr1, const void * ptr2)
+{
+    const double * dp1 = (const double*) ptr1;
+    const double * dp2 = (const double*) ptr2;
+    if      (*dp1 < *dp2) return -1;
+    else if (*dp1 > *dp2) return  1;
+    else                  return  0;
+}
+#endif
+
 /*-----------------------------------------------------------------------
  * INSTRUCTIONS:
  *
@@ -186,7 +199,7 @@ static STREAM_TYPE      b[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(20971
 static STREAM_TYPE      c[STREAM_ARRAY_SIZE+OFFSET] __attribute__((aligned(2097152)));
 #endif
 
-static double	avgtime[4] = {0}, maxtime[4] = {0},
+static double	avgtime[4] = {0}, maxtime[4] = {0}, medtime[4],
 		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
 
 static char	*label[4] = {"Copy:      ", "Scale:     ",
@@ -262,10 +275,12 @@ main()
 #endif
 
 #ifdef _OPENMP
-	k = 0;
+    k = 0;
 #pragma omp parallel
+    {
 #pragma omp atomic 
-		k++;
+        k++;
+    }
     printf ("Number of Threads counted = %i\n",k);
 #endif
 
@@ -355,6 +370,28 @@ main()
 
     /*	--- SUMMARY --- */
 
+#if SORT_TIMES
+    printf("sorting times\n");
+    for (j=0; j<4; j++) {
+        qsort(&(times[j][1]), NTIMES-1, sizeof(double), &cmpdouble);
+    }
+#endif
+    for (j=0; j<4; j++) {
+        k = NTIMES-1;
+        if (k % 2) {
+            /* odd */
+            int middle = k/2+1;
+            //printf("k=%d middle=%d\n", k, middle);
+            medtime[j] = times[j][middle];
+        } else {
+            /* even */
+            int left  = k/2;
+            int right = k/2+1;
+            //printf("k=%d left=%d right=%d\n", k, left, right);
+            medtime[j] = (times[j][left] + times[j][right])/2;
+        }
+    }
+
     for (k=1; k<NTIMES; k++) /* note -- skip first iteration */
 	{
 	for (j=0; j<4; j++)
@@ -365,14 +402,15 @@ main()
 	    }
 	}
     
-    printf("Function    Best Rate MB/s  Avg time     Min time     Max time\n");
+    printf("Function    Best Rate MB/s  Avg time     Min time     Med time     Max time\n");
     for (j=0; j<4; j++) {
 		avgtime[j] = avgtime[j]/(double)(NTIMES-1);
 
-		printf("%s%12.1f  %11.6f  %11.6f  %11.6f\n", label[j],
+		printf("%s%12.1f  %11.6f  %11.6f  %11.6f  %11.6f\n", label[j],
 	       1.0E-06 * bytes[j]/mintime[j],
 	       avgtime[j],
 	       mintime[j],
+	       medtime[j],
 	       maxtime[j]);
     }
     printf(HLINE);
