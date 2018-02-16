@@ -1,0 +1,35 @@
+Running on KNL with fewer than one thread per core leads
+to different results depending on whether the threads share
+a tile or not.  Placing one thread per tile leads to increased
+bandwidth relative to one thread per core on adjacent cores.
+
+You can experiment with the placement using OpenMP affinity
+as shown below.
+
+# Example 1
+
+This example shows the difference between 32 threads on 16 tiles
+and 32 threads on 32 tiles, with the verbose affinity output
+provided by the Intel OpenMP runtime for verification.
+
+```
+OMP_PROC_BIND=TRUE OMP_NUM_THREADS=32 OMP_PLACES="{0}:32:1" KMP_AFFINITY=verbose srun numactl -m 1 ./stream_c.exe
+OMP_PROC_BIND=TRUE OMP_NUM_THREADS=32 OMP_PLACES="{0}:32:2" KMP_AFFINITY=verbose srun numactl -m 1 ./stream_c.exe
+```
+
+# Example 2
+
+This is the same experiment as before but on 34 threads (i.e. for a 68-core SKU)
+and with the verbose affinity elided.
+```
+OMP_PROC_BIND=TRUE OMP_NUM_THREADS=34 OMP_PLACES="{0}:34:2" srun numactl -m 1 ./stream_c.exe
+OMP_PROC_BIND=TRUE OMP_NUM_THREADS=34 OMP_PLACES="{0}:34:1" srun numactl -m 1 ./stream_c.exe
+```
+
+# Example 3
+
+This examples shows the bandwidth difference with 4 threads running out of DDR4.
+```
+OMP_PROC_BIND=TRUE OMP_NUM_THREADS=4 OMP_PLACES="{0}:68:1" srun numactl -m 0 ./stream_c.exe
+OMP_PROC_BIND=TRUE OMP_NUM_THREADS=4 OMP_PLACES="{0}:68:2" srun numactl -m 0 ./stream_c.exe
+```
