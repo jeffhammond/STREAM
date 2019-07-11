@@ -33,3 +33,11 @@ This examples shows the bandwidth difference with 4 threads running out of DDR4.
 OMP_PROC_BIND=TRUE OMP_NUM_THREADS=4 OMP_PLACES="{0}:68:1" srun numactl -m 0 ./stream_c.exe
 OMP_PROC_BIND=TRUE OMP_NUM_THREADS=4 OMP_PLACES="{0}:68:2" srun numactl -m 0 ./stream_c.exe
 ```
+
+# Example 4
+
+This example shows how to use the Intel OpenMP runtime affinity controls.
+```
+KMP_AFFINITY=granularity=fine,compact,verbose KMP_HW_SUBSET=1s,72c,1t numactl -m 0 ./stream_c.exe
+KMP_AFFINITY=granularity=fine,compact,verbose KMP_HW_SUBSET=1s,72c,1t numactl -m 1 ./stream_c.exe
+```
