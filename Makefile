@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -march=znver1 \
+CFLAGS = -O3 -march=znver2 \
          -fopenmp \
          -mcmodel=medium \
          -DSTREAM_ARRAY_SIZE=134217728 \
@@ -7,7 +7,7 @@ CFLAGS = -O3 -march=znver1 \
          -DNTIMES=100
 
 FC = gfortran
-FFLAGS = -O3 -march=znver1 -fopenmp -mcmodel=medium
+FFLAGS = -O3 -march=znver2 -fopenmp -mcmodel=medium
 
 all: stream_f.exe stream_c.exe
 
