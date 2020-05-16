@@ -23,7 +23,7 @@ FC = ifort
 FFLAGS = -O3 -xCORE-AVX512 -qopenmp -qopt-zmm-usage=low
 
 all: stream_f.exe stream_c.exe stream_c.temporal stream_c.nontemporal
-all: stream_c.exe
+#all: stream_c.exe
 
 stream_f.exe: stream.f mysecond.o
 	$(CC) $(CFLAGS) -c mysecond.c
