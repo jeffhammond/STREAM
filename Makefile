@@ -1,6 +1,5 @@
 CC = icc
-CFLAGS = -O3 -xCORE-AVX512 \
-	 -qopt-zmm-usage=low \
+CFLAGS = -O3 -xCORE-AVX2 \
          -qopenmp \
          -mcmodel=medium \
          -shared-intel \
@@ -12,7 +11,7 @@ TEMPORAL = -qopt-streaming-stores never
 NONTEMPORAL = -qopt-streaming-stores always
 
 FC = ifort
-FFLAGS = -O3 -xCORE-AVX512 -qopenmp -qopt-zmm-usage=low
+FFLAGS = -O3 -xCORE-AVX2 -qopenmp
 
 all: stream_f.exe stream_c.exe stream_c.temporal stream_c.nontemporal
 
