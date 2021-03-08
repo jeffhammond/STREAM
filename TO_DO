@@ -1,0 +1,20 @@
+2016-05-18:
+
+* Incorporate the timer code for Microsoft Windows into the mainstream version of stream.c
+
+* Incorporate alternate array allocation into the mainstream version of stream.c
+** posix_memalign()
+** malloc()
+** mmap()
+** shmget()/shmat()
+
+* Figure out if the "restrict" keyword can actually be made portable and useful
+  for C versions....
+
+* Update the Fortran version of STREAM to catch up with the functionality
+  and features of the C version 5.10
+** Updated result checking code with minimal roundoff error.
+** Large integer array indices (N > (1<<32)).
+
+* Update the Fortran MPI version of STREAM to catch up with the functionality
+  and features of the C version 5.10

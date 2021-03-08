@@ -1,0 +1,124 @@
+===============================================
+STREAM is the de facto industry standard benchmark
+   for measuring sustained memory bandwidth.
+Documentation for STREAM is on the web at:
+   http://www.cs.virginia.edu/stream/ref.html
+===============================================
+===============================================
+This "Versions" directory holds several variants of
+STREAM that are sometimes useful.
+===============================================
+===============================================
+Potentially Useful Versions:
+    2014-Oct-21  stream_mpi.c
+    2014-Oct-21  stream_5-10_posix_memalign.c
+    2014-Feb-14  stream_mpi.f
+    2012-Aug-14  stream_windows.c
+
+All older versions have been moved to the "Old"
+directory and should not be used.
+    2009-Mar-14  stream_omp.c
+    2004-Dec-12  stream_tuned.f
+    2003-May-27  stream_d.f
+    2003-Apr-08  second_cpu.f
+    2003-Apr-08  second_cpu.c
+    2003-Jan-10  stream_d.c
+===============================================
+NEWS AND NOTES
+===============================================
+UPDATE: October 28 2014:
+
+"stream_mpi.c" released.
+Based on Version 5.10 of stream.c, stream_mpi.c
+brings the following new features:
+* MPI implementation that *distributes* the arrays
+  across all MPI ranks. (The older Fortran version
+  of STREAM in MPI *replicates* the arrays across
+  all MPI ranks.)
+* Data is allocated using "posix_memalign" 
+  rather than using static arrays.  Different
+  compiler flags may be needed for both portability
+  and optimization.
+  For example, on the TACC Stampede system using
+  the Intel compilers, my standard compile line
+  for a 4-node run is:
+	-----------------------------------------
+	mpicc -O3 -ffreestanding -openmp -mcmodel=medium -restrict -opt-streaming-stores always  \
+	    -DSTREAM_ARRAY_SIZE=80000000 -DNTIMES=20 -DVERBOSE   \
+	    stream_mpi.c -o stream_mpi
+
+	Notes on flags:
+	    -O3                                 works OK, as does -O2 in most cases
+	    -ffreestanding                      don't replace the Copy kernel with a library version
+	    -openmp                             use OpenMP
+	    -mcmodel=medium                     allow arrays to be bigger than 4 GiB
+	    -restrict                           allow use of the C99 "restrict" keyword
+	    -opt-streaming-stores always        force streaming stores
+
+	Notes on preprocessor variables:
+	    STREAM_ARRAY_SIZE                   elements per array (distributed across all ranks)
+	    NTIMES                              number of iterations to run
+	    VERBOSE                             print startup and shutdown timing information
+	-----------------------------------------
+* Error checking and timing done by all ranks and
+  gathered by rank 0 for processing and output.
+* Timing code uses barriers to ensure correct
+  operation even when multiple MPI ranks run on
+  shared memory systems.
+
+NOTE: MPI is not a preferred implementation for
+  STREAM, which is intended to measure memory
+  bandwidth in shared-memory systems.  In stream_mpi,
+  the MPI calls are only used to properly synchronize
+  the timers (using MPI_Barrier) and to gather
+  timing and error data, so the performance should 
+  scale linearly with the size of the cluster.
+  But it may be useful, and was an interesting 
+  exercise to develop and debug.
+
+===============================================
+UPDATE: January 17 2013:
+
+Version 5.10 of stream.c is finally available!
+
+There are no changes to what is being measured, but
+a number of long-awaited improvements have been made:
+
+* Updated validation code does not suffer from 
+  accumulated roundoff error for large arrays.
+* Defining the preprocessor variable "VERBOSE"
+  when compiling will (1) cause the code to print the
+  measured average relative absolute error (rather than
+  simply printing "Solution Validates", and (2) print
+  the first 10 array entries with relative error exceeding
+  the error tolerance.
+* Array index variables have been upgraded from
+  "int" to "ssize_t" to allow arrays with more
+  than 2 billion elements on 64-bit systems.
+* Substantial improvements to the comments in 
+  the source on how to configure/compile/run the
+  benchmark.
+* The proprocessor variable controlling the array
+  size has been changed from "N" to "STREAM_ARRAY_SIZE".
+* A new preprocessor variable "STREAM_TYPE" can be
+  used to override the data type from the default
+  "double" to "float".
+  This mechanism could also be used to change to 
+  non-floating-point types, but several "printf"
+  statements would need to have their formats changed
+  to accomodate the modified data type.
+* Some small changes in output, including printing
+  array sizes is GiB as well as MiB.
+* Change to the default output format to print fewer
+  decimals for the bandwidth and more decimals for
+  the min/max/avg execution times.
+===============================================
+STREAM is a project of "Dr. Bandwidth":
+	John D. McCalpin, Ph.D.
+	john@mccalpin.com
+===============================================
+The STREAM web and ftp sites are currently hosted at
+the Department of Computer Science at the University of
+Virginia under the generous sponsorship of Professor Bill
+Wulf and Professor Alan Batson.
+===============================================
