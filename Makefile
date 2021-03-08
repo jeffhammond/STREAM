@@ -1,7 +1,7 @@
-CC = gcc-4.9
+CC = gcc
 CFLAGS = -O2 -fopenmp
 
-FC = gfortran-4.9
+FC = gfortran
 FFLAGS = -O2 -fopenmp
 
 all: stream_f.exe stream_c.exe
