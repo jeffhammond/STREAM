@@ -1,0 +1,496 @@
+/*-----------------------------------------------------------------------*/
+/* Program: Stream                                                       */
+/* Revision: $Id: stream.c,v 5.10 2009/01/28 13:22:09 mccalpin Exp mccalpin $ */
+/* Original code developed by John D. McCalpin                           */
+/* Programmers: John D. McCalpin                                         */
+/*              Joe R. Zagar                                             */
+/*                                                                       */
+/* This program measures memory transfer rates in MB/s for simple        */
+/* computational kernels coded in C.                                     */
+/*-----------------------------------------------------------------------*/
+/* Copyright 1991-2005: John D. McCalpin                                 */
+/*-----------------------------------------------------------------------*/
+/* License:                                                              */
+/*  1. You are free to use this program and/or to redistribute           */
+/*     this program.                                                     */
+/*  2. You are free to modify this program for your own use,             */
+/*     including commercial use, subject to the publication              */
+/*     restrictions in item 3.                                           */
+/*  3. You are free to publish results obtained from running this        */
+/*     program, or from works that you derive from this program,         */
+/*     with the following limitations:                                   */
+/*     3a. In order to be referred to as "STREAM benchmark results",     */
+/*         published results must be in conformance to the STREAM        */
+/*         Run Rules, (briefly reviewed below) published at              */
+/*         http://www.cs.virginia.edu/stream/ref.html                    */
+/*         and incorporated herein by reference.                         */
+/*         As the copyright holder, John McCalpin retains the            */
+/*         right to determine conformity with the Run Rules.             */
+/*     3b. Results based on modified source code or on runs not in       */
+/*         accordance with the STREAM Run Rules must be clearly          */
+/*         labelled whenever they are published.  Examples of            */
+/*         proper labelling include:                                     */
+/*         "tuned STREAM benchmark results"                              */
+/*         "based on a variant of the STREAM benchmark code"             */
+/*         Other comparable, clear and reasonable labelling is           */
+/*         acceptable.                                                   */
+/*     3c. Submission of results to the STREAM benchmark web site        */
+/*         is encouraged, but not required.                              */
+/*  4. Use of this program or creation of derived works based on this    */
+/*     program constitutes acceptance of these licensing restrictions.   */
+/*  5. Absolutely no warranty is expressed or implied.                   */
+/*-----------------------------------------------------------------------*/
+# include <stdio.h>
+# include <stdlib.h>
+# include <getopt.h>
+# include <math.h>
+# include <float.h>
+# include <limits.h>
+# include <math.h>
+# include <sys/time.h>
+# include <sys/ipc.h>
+# include <sys/shm.h>
+
+/* INSTRUCTIONS:
+ *
+ *	1) Stream requires a good bit of memory to run.  Adjust the
+ *          value of 'N' (below) to give a 'timing calibration' of 
+ *          at least 20 clock-ticks.  This will provide rate estimates
+ *          that should be good to about 5% precision.
+ */
+
+/*
+ *	3) Compile the code with full optimization.  Many compilers
+ *	   generate unreasonably bad code before the optimizer tightens
+ *	   things up.  If the results are unreasonably good, on the
+ *	   other hand, the optimizer might be too smart for me!
+ *
+ *         Try compiling with:
+ *               cc -O stream_omp.c -o stream_omp
+ *
+ *         This is known to work on Cray, SGI, IBM, and Sun machines.
+ *
+ *
+ *	4) Mail the results to mccalpin@cs.virginia.edu
+ *	   Be sure to include:
+ *		a) computer hardware model number and software revision
+ *		b) the compiler flags
+ *		c) all of the output from the test case.
+ * Thanks!
+ *
+ */
+
+#include "stream.h"
+
+#define MAXNTIMES 100
+#define MAXSEGS 8
+
+int
+main(int argc, char **argv)
+    {
+    long		N, OFFSET, SIZE;
+    int			quantum;
+    int			largepage,shmflag,shmid[MAXSEGS]; 
+    int			BytesPerWord;
+    register int	j, k;
+    double		scalar, t, times[4][MAXNTIMES];
+    double		*a, *b, *c;
+    double		avgtime[4] = {0};
+    double		maxtime[4] = {0};
+    double		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
+    static char		*label[4] = {"Copy:      ", "Scale:     ",
+				     "Add:       ", "Triad:     "};
+    double		bytes[4] = {2 * sizeof(double),
+				    2 * sizeof(double),
+				    3 * sizeof(double),
+				    3 * sizeof(double)};
+
+    /* --- default options --- */
+    N = 2000000;
+    OFFSET = 0;
+    NTIMES = 10;
+    largepage = 0;
+
+    /* --- NEW --- parse command line arguments using getopt --- */
+    while (1) {
+        int this_option_optind = optind ? optind : 1;
+        int option_index = 0;
+        static struct option long_options[] = {
+            {"largepage", 1, 0, 'l'},
+            {"length", 1, 0, 'n'},
+            {"offset", 1, 0, 'o'},
+            {"repetitions", 1, 0, 'r'},
+            {"tuned", 1, 0, 't'},
+            {"help", 0, 0, 'h'},
+            {0, 0, 0, 0}
+        };
+
+        j = getopt_long (argc, argv, "ln:o:r:t:h",
+                 long_options, &option_index);
+        if (j == -1)	/* finished parsing all command-line options */
+            break;
+
+        switch (j) {
+	    case 0:			/* this should not happen */
+		printf ("option %s", long_options[option_index].name);
+		if (optarg)
+		    printf (" with arg %s", optarg);
+		printf ("\n");
+		break;
+
+	    case 'l':		/* requesting data allocation on large pages */
+		printf ("User requested data allocation on large pages\n");
+		largepage=1;
+		break;
+
+	    case 'n':		/* define vector length in 10^6 elements */
+		printf ("User requested Array Size of %d * 10^6 elements\n", optarg);
+		N = atoi(optarg);
+		if ( N >= 2147 ) {
+		    printf("Warning: Array Size exceeds 2GB - watch for anomalies\n");
+		}
+		N = N * 1000 * 1000;
+		break;
+
+	    case 'o':		/* define offset in elements */
+		printf ("User requested Array Offset of %d elements\n", optarg);
+		OFFSET = atoi(optarg);
+		break;
+
+	    case 'r':		/* specify number of repetitions */
+		printf ("option r with value '%s'\n", optarg);
+		NTIMES = atoi(optarg);
+		if (NTIMES > MAXNTIMES) {
+		    NTIMES = MAXNTIMES;
+		    printf("Note: requested repetitions exceeds maximum allowed\n");
+		    printf("      repeat count reset to %d\n",MAXNTIMES);
+		}
+            break;
+
+	   case 't':		/* selection tuned version of code -- not currently used */
+		printf ("option t with value '%s'\n", optarg);
+            break;
+
+	   case 'h':
+		printf ("Usage: %s [options]\n",argv[0]);
+		printf ("Options:\n");
+		printf ("   [-l]                  <-- request data put on large pages (in a shared segment)\n");
+		printf ("   [-n, --length] n      <-- n is array length in 10^6 elements\n");
+		printf ("   [-o, --offset] n      <-- n is offset/padding in elements\n");
+		printf ("   [-r, --repetitions] n <-- n is number of repetitions for timing (1st is not counted)\n");
+		printf ("   [-t, --tuned] nnn     <-- nnn is version number of tuned kernels to execute\n");
+		printf ("   [-h, --help]          <-- gives this help message and exits\n");
+		exit(0);
+
+	   default:
+           printf ("?? getopt returned character code 0%o ??\n", c);
+        }
+    }
+
+   if (optind < argc) {
+        printf ("non-option ARGV-elements: ");
+        while (optind < argc)
+            printf ("%s ", argv[optind++]);
+        printf ("\n");
+    }
+
+
+    /* --- SETUP --- determine precision and check timing --- */
+
+    printf(HLINE);
+    printf("STREAM version $Revision: 5.10 $\n");
+    printf(HLINE);
+    BytesPerWord = sizeof(double);
+    printf("This system uses %d bytes per DOUBLE PRECISION word.\n",
+	BytesPerWord);
+
+    printf(HLINE);
+    printf("Array size = %d, Offset = %d\n" , N, OFFSET);
+    printf("Total memory required = %.1f MB.\n",
+	(3.0 * BytesPerWord) * ( (double) (N+OFFSET) / 1048576.0));
+    printf(HLINE);
+    printf("Allocating three arrays....\n");
+
+    if (largepage) {
+	SIZE = (3*N + 3*OFFSET) * sizeof(double);
+	printf("Data SIZE needed %llu (Bytes)\n",SIZE);
+	SIZE = ceil((double)SIZE/(2048.*1024.)) * 2048*1024;
+	printf("Data SIZE requested %llu (Bytes)\n",SIZE);
+	printf("attempting to create (shmget) a shared segment of size %llu\n",SIZE);
+	shmid[0] = shmget(IPC_PRIVATE,SIZE,IPC_CREAT|SHM_HUGETLB);
+	if (shmid[0] == -1) {
+		perror("ERROR: failed shmget:");
+		printf("(usually caused by non-root user trying to get large pages)\n");
+		exit(2);
+	}
+	printf("shmget returned a shmid of %d\n",shmid[0]);
+	a = shmat(shmid[0],0,SHM_RND);
+	printf("shmat returned a pointer to %p\n",a);
+	if (a == (double *)(-1)) {
+		perror("ERROR: failed shmat:");
+		printf("Deleting shared segment\n");
+		shmctl(shmid[0],IPC_RMID,NULL);
+		exit(3);
+	}
+	b = a + N + OFFSET;
+	c = a + 2 * (N + OFFSET);
+    }
+    else{
+	a = malloc( (N+0*OFFSET) * sizeof(double));
+	b = malloc( (N+1*OFFSET) * sizeof(double));
+	c = malloc( (N+2*OFFSET) * sizeof(double));
+	if ( (a==0) || (b==0) || (c==0) ) {
+	    printf("Error: one or more mallocs failed!\n");
+	    printf(" a = %p\n",a);
+	    printf(" b = %p\n",b);
+	    printf(" c = %p\n",c);
+	}
+	/* Move the starting points of b and c to implement the OFFSET */
+	b += OFFSET;
+	c += 2*OFFSET;
+    }
+    printf("Array Starting Locations: \n");
+    printf(" a = %p\n",a);
+    printf(" b = %p\n",b);
+    printf(" c = %p\n",c);
+
+    printf(HLINE);
+    printf("Each test is run %d times, but only\n", NTIMES);
+    printf("the *best* time for each is used.\n");
+
+#ifdef _OPENMP
+    printf(HLINE);
+    printf("OpenMP conditional compilation is active\n");
+#pragma omp parallel 
+    {
+#pragma omp master
+	{
+	    k = omp_get_num_threads();
+	    printf ("Number of Threads requested = %i\n",k);
+        }
+    }
+#endif
+
+    printf(HLINE);
+#pragma omp parallel
+    {
+    printf ("Printing one line per active thread....\n");
+    }
+
+    /* Get initial value for system clock. */
+#pragma omp parallel for
+    for (j=0; j<N; j++) {
+	a[j] = 1.0;
+	b[j] = 2.0;
+	c[j] = 0.0;
+	}
+
+    printf(HLINE);
+
+    if  ( (quantum = checktick()) >= 1) 
+	printf("Your clock granularity/precision appears to be "
+	    "%d microseconds.\n", quantum);
+    else {
+	printf("Your clock granularity appears to be "
+	    "less than one microsecond.\n");
+	quantum = 1;
+    }
+
+    t = mysecond();
+#pragma omp parallel for
+    for (j = 0; j < N; j++)
+	a[j] = 2.0E0 * a[j];
+    t = 1.0E6 * (mysecond() - t);
+
+    printf("Each test below will take on the order"
+	" of %d microseconds.\n", (int) t  );
+    printf("   (= %d clock ticks)\n", (int) (t/quantum) );
+    printf("Increase the size of the arrays if this shows that\n");
+    printf("you are not getting at least 20 clock ticks per test.\n");
+
+    printf(HLINE);
+
+    printf("WARNING -- The above is only a rough guideline.\n");
+    printf("For best results, please be sure you know the\n");
+    printf("precision of your system timer.\n");
+    printf(HLINE);
+    
+    /*	--- MAIN LOOP --- repeat test cases NTIMES times --- */
+
+#ifdef TUNED
+#include "tuned.inc"
+#else
+#include "standard.inc"
+#endif
+
+    /*	--- SUMMARY --- */
+
+    for (k=1; k<NTIMES; k++) /* note -- skip first iteration */
+	{
+	for (j=0; j<4; j++)
+	    {
+	    avgtime[j] = avgtime[j] + times[j][k];
+	    mintime[j] = MIN(mintime[j], times[j][k]);
+	    maxtime[j] = MAX(maxtime[j], times[j][k]);
+	    }
+	}
+    
+    printf("Function      Rate (MB/s)   Avg time     Min time     Max time\n");
+    for (j=0; j<4; j++) {
+	avgtime[j] = avgtime[j]/(double)(NTIMES-1);
+
+	printf("%s%11.4f  %11.4f  %11.4f  %11.4f\n", label[j],
+	       1.0E-06 * (double) N * bytes[j]/mintime[j],
+	       avgtime[j],
+	       mintime[j],
+	       maxtime[j]);
+    }
+    printf(HLINE);
+
+    /* --- Check Results --- */
+    checkSTREAMresults(N, a, b, c);
+    printf(HLINE);
+
+    return 0;
+}
+
+
+/* =============== Utility Routines ================= */
+
+/* ---------------------------------------------------------------- 
+   checktick tries to determine the granularity of the system timer
+   Thanks to John Henning for the original code 
+------------------------------------------------------------------- */
+
+# define	M	20
+int
+checktick()
+    {
+    int		i, minDelta, Delta;
+    double	t1, t2, timesfound[M];
+
+/*  Collect a sequence of M unique time values from the system. */
+    for (i = 0; i < M; i++) {
+	t1 = mysecond();
+	while( ((t2=mysecond()) - t1) < 1.0E-6 )
+	    ;
+	timesfound[i] = t1 = t2;
+	}
+
+/*
+ * Determine the minimum difference between these M values.
+ * This result will be our estimate (in microseconds) for the
+ * clock granularity.
+ */
+    minDelta = 1000000;
+    for (i = 1; i < M; i++) {
+	Delta = (int)( 1.0E6 * (timesfound[i]-timesfound[i-1]));
+	minDelta = MIN(minDelta, MAX(Delta,0));
+	}
+
+   return(minDelta);
+    }
+
+
+/* ----------------------------------------------- 
+   A gettimeofday routine to give access to the wall
+   clock timer on most UNIX-like systems. 
+-------------------------------------------------- */
+
+#include <sys/time.h>
+
+double mysecond()
+{
+        struct timeval tp;
+        struct timezone tzp;
+        int i;
+
+        i = gettimeofday(&tp,&tzp);
+        return ( (double) tp.tv_sec + (double) tp.tv_usec * 1.e-6 );
+}
+
+/* ----------------------------------------------- 
+   Check the results to make sure all the loops
+   have actually been run.   
+   This revised version (in 5.9 and above) sums the
+   absolute errors across the arrays, rather than 
+   summing the values in the arrays and comparing
+   with the expected sum.  This version is much 
+   less sensitive to accumulation of roundoff error.
+-------------------------------------------------- */
+void checkSTREAMresults (long N, double *a, double *b, double *c)
+{
+	double aj,bj,cj,scalar;
+	double asum,bsum,csum;
+	double epsilon;
+	int	j,k,fail=0;
+
+    /* reproduce initialization */
+	aj = 1.0;
+	bj = 2.0;
+	cj = 0.0;
+    /* a[] is modified during timing check */
+	aj = 2.0E0 * aj;
+    /* now execute timing loop */
+	scalar = 3.0;
+	for (k=0; k<NTIMES; k++)
+        {
+            cj = aj;
+            bj = scalar*cj;
+            cj = aj+bj;
+            aj = bj+scalar*cj;
+        }
+    /* now aj, bj, and cj have values that should match each element */
+    /* of arrays a[], b[], and c[] -- unless I modified the code to */
+    /* fiddle with some entries to confuse optimizers -- watch for this */
+
+#ifdef VERBOSE
+	printf ("Comparison of specific values at midpoint of arrays: \n");
+	printf ("        Expected  : %f %f %f \n",aj,bj,cj);
+	printf ("        Observed  : %f %f %f \n",a[N/2],b[N/2],c[N/2]);
+#endif
+
+#ifndef abs
+#define abs(a) ((a) >= 0 ? (a) : -(a))
+#endif
+	asum = 0.0;
+	bsum = 0.0;
+	csum = 0.0;
+	for (j=0; j<N; j++) {
+		asum += abs(a[j] - aj);
+		bsum += abs(b[j] - bj);
+		csum += abs(c[j] - cj);
+	}
+	asum = asum / (double) (N);
+	csum = bsum / (double) (N);
+	csum = csum / (double) (N);
+#ifdef VERBOSE
+	printf ("Average Absolute Error : \n");
+	printf ("    arrays: a, b, c  : %f %f %f \n",asum,bsum,csum);
+#endif
+
+	epsilon = 1.e-8;
+
+	if (asum > epsilon) {
+		printf ("Failed Validation on array a[]\n");
+		printf ("        Max Allowable Error  : %f \n",epsilon);
+		printf ("        Observed Error       : %f \n",asum);
+		fail = 1;
+	}
+	if (bsum > epsilon) {
+		printf ("Failed Validation on array b[]\n");
+		printf ("        Max Allowable Error  : %f \n",epsilon);
+		printf ("        Observed Error       : %f \n",bsum);
+		fail = 1;
+	}
+	if (csum > epsilon) {
+		printf ("Failed Validation on array c[]\n");
+		printf ("        Max Allowable Error  : %f \n",epsilon);
+		printf ("        Observed Error       : %f \n",csum);
+		fail = 1;
+	}
+	if (fail == 0) {
+		printf ("Solution Validates\n");
+	}
+}
+
