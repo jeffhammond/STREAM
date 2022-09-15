@@ -108,3 +108,26 @@ Virginia under the generous sponsorship of Professor Bill
 Wulf and Professor Alan Batson.
 
 ===============================================
+Troubleshooting
+When the executable is built, the value of DSTREAM_ARRAY_SIZE 
+depends on the compilation environment and is calculated 
+as follows:
+DSTREAM_ARRAY_SIZE>=(CPU level 3 cache)*(Number of cpus + 0.1)
+However, when the value is above 200,000,000, there will be 
+a compilation failure.
+
+/usr/bin/ld: /tmp/ccbt0Qv7.o: in function `checkSTREAMresults':
+stream.c:(.text+0x354): relocation truncated to fit: R_X86_64_32S against `.bss'
+/usr/bin/ld: /tmp/ccbt0Qv7.o: in function `main':
+stream.c:(.text.startup+0x3c4): relocation truncated to fit: R_X86_64_32S against `.bss'
+/usr/bin/ld: stream.c:(.text.startup+0x483): relocation truncated to fit: R_X86_64_32S against `.bss'
+collect2: error: ld returned 1 exit status
+
+If the above error occurs, you need to add parameters 
+at build time
+
+-mcmodel=large
+===============================================
+
+
+
