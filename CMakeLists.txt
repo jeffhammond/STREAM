@@ -22,21 +22,11 @@ add_executable(stream_f.exe stream.f mysecond.c)
 # see https://www.scivision.dev/cmake-openmp/ for more details
 
 find_package(OpenMP COMPONENTS C Fortran)
-# Use a generator expression to link OpenMP to the executables
-target_link_libraries(
-  stream_c.exe 
-  PRIVATE
-  $<$<BOOL:${OpenMP_C_FOUND}>:OpenMP::OpenMP_C>
-)
-
-target_link_libraries(
-  stream_f.exe 
-  PRIVATE
-  $<$<BOOL:${OpenMP_Fortran_FOUND}>:OpenMP::OpenMP_Fortran>
-)
+target_link_libraries(stream_c.exe $<$<BOOL:${OpenMP_C_FOUND}>:OpenMP::OpenMP_C>)
+target_link_libraries(stream_f.exe $<$<BOOL:${OpenMP_Fortran_FOUND}>:OpenMP::OpenMP_Fortran>)
 
 # Per @scivision, ignore the build directory
+# (see https://www.scivision.dev/cmake-auto-gitignore-build-dir/)
 if(NOT PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
-  # Git auto-ignore out-of-source build directory
   file(GENERATE OUTPUT .gitignore CONTENT "*")
 endif()
