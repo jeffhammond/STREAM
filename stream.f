@@ -117,11 +117,8 @@ C     .. Intrinsic Functions ..
 C
       INTRINSIC dble,max,min,nint,sqrt
 C     ..
-C     .. Arrays in Common ..
-      DOUBLE PRECISION a(ndim),b(ndim),c(ndim)
-C     ..
-C     .. Common blocks ..
-*     COMMON a,b,c
+C     .. Allocatable arrays
+       DOUBLE PRECISION, ALLOCATABLE :: a(:),b(:),c(:)
 C     ..
 C     .. Data statements ..
       DATA avgtime/4*0.0D0/,mintime/4*1.0D+36/,maxtime/4*0.0D0/
@@ -145,6 +142,8 @@ C     ..
       WRITE (*,FMT=9030) '--'
       WRITE (*,FMT=9030) 'The *best* time for each test is used'
       WRITE (*,FMT=9030) '*EXCLUDING* the first and last iterations'
+
+      ALLOCATE (a(ndim),b(ndim),c(ndim))
 
 !$OMP PARALLEL
 !$OMP MASTER
