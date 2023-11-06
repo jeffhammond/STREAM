@@ -50,9 +50,7 @@
 *
 * BRIEF INSTRUCTIONS:
 *       0) See http://www.cs.virginia.edu/stream/ref.html for details
-*       1) STREAM requires a timing function called mysecond().
-*          Several examples are provided in this directory.
-*          "CPU" timers are only allowed for uniprocessor runs.
+*       1) "CPU" timers are only allowed for uniprocessor runs.
 *          "Wall-clock" timers are required for all multiprocessor runs.
 *       2) The STREAM array sizes must be set to size the test.
 *          The value "N" must be chosen so that each of the three
@@ -91,14 +89,19 @@
 *=========================================================================
 *
       PROGRAM stream
+
+      use, intrinsic :: iso_fortran_env, only : int64
       IMPLICIT NONE
 C     .. Parameters ..
       INTEGER n,offset,ndim,ntimes
       PARAMETER (n=20000000,offset=0,ndim=n+offset,ntimes=10)
 C     ..
 C     .. Local Scalars ..
-      DOUBLE PRECISION scalar,t
-      INTEGER j,k,nbpw,quantum
+      DOUBLE PRECISION :: scalar
+      integer(int64) :: t64, tic, toc
+      integer(int64) :: tick_rate
+      INTEGER j,k,nbpw
+      integer(int64) :: quantum
 C     ..
 C     .. Local Arrays ..
       DOUBLE PRECISION maxtime(4),mintime(4),avgtime(4),
@@ -106,8 +109,6 @@ C     .. Local Arrays ..
       INTEGER bytes(4)
       CHARACTER label(4)*11
 C     ..
-C     .. External Functions ..
-      DOUBLE PRECISION mysecond
 
 !$    INTEGER, external :: omp_get_num_threads
 C     ..
@@ -131,6 +132,9 @@ C     ..
 *       --- SETUP --- determine precision and check timing ---
 
       allocate(a(ndim), b(ndim), c(ndim))
+
+      call system_clock(COUNT_RATE=tick_rate)
+C     set timing to max precision, typically sub-microsecond
 
       nbpw = storage_size(a)/8
 
@@ -164,62 +168,66 @@ C     ..
           b(j) = 0.5D0
           c(j) = 0.0D0
    10 CONTINUE
-      t = mysecond()
+      call system_clock(count=tic)
 !$OMP PARALLEL DO
       DO 20 j = 1,n
           a(j) = 0.5d0*a(j)
    20 CONTINUE
-      t = mysecond() - t
+      call system_clock(count=toc)
+      t64 = toc - tic
       PRINT *,'----------------------------------------------------'
-      quantum = checktick()
-      WRITE (*,FMT=9000)
-     $  'Your clock granularity/precision appears to be ',quantum,
-     $  ' microseconds'
+
+      print '(a,f10.3)','Clock granularity/precision (microseconds):',
+     &   1/dble(tick_rate) * 1e6
       PRINT *,'----------------------------------------------------'
 
 *       --- MAIN LOOP --- repeat test cases NTIMES times ---
       scalar = 0.5d0*a(1)
       DO 70 k = 1,ntimes
 
-          t = mysecond()
-          a(1) = a(1) + t
+          call system_clock(count=tic)
+          a(1) = a(1) + tic
 !$OMP PARALLEL DO
           DO 30 j = 1,n
               c(j) = a(j)
    30     CONTINUE
-          t = mysecond() - t
-          c(n) = c(n) + t
-          times(1,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          c(n) = c(n) + t64
+          times(1,k) = t64 / dble(tick_rate)
 
-          t = mysecond()
-          c(1) = c(1) + t
+          call system_clock(count=tic)
+          c(1) = c(1) + tic
 !$OMP PARALLEL DO
           DO 40 j = 1,n
               b(j) = scalar*c(j)
    40     CONTINUE
-          t = mysecond() - t
-          b(n) = b(n) + t
-          times(2,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          b(n) = b(n) + t64
+          times(2,k) = t64 / dble(tick_rate)
 
-          t = mysecond()
-          a(1) = a(1) + t
+          call system_clock(count=tic)
+          a(1) = a(1) + tic
 !$OMP PARALLEL DO
           DO 50 j = 1,n
               c(j) = a(j) + b(j)
    50     CONTINUE
-          t = mysecond() - t
-          c(n) = c(n) + t
-          times(3,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          c(n) = c(n) + t64
+          times(3,k) = t64 / dble(tick_rate)
 
-          t = mysecond()
-          b(1) = b(1) + t
+          call system_clock(count=tic)
+          b(1) = b(1) + tic
 !$OMP PARALLEL DO
           DO 60 j = 1,n
               a(j) = b(j) + scalar*c(j)
    60     CONTINUE
-          t = mysecond() - t
-          a(n) = a(n) + t
-          times(4,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          a(n) = a(n) + t64
+          times(4,k) = t64 / dble(tick_rate)
    70 CONTINUE
 
 *       --- SUMMARY ---
@@ -240,7 +248,6 @@ C     ..
       CALL checksums (a,b,c,n,ntimes)
       PRINT *,'----------------------------------------------------'
 
- 9000 FORMAT (1x,a,i6,a)
  9010 FORMAT (1x,a,i10)
  9020 FORMAT (1x,a,i4,a)
  9030 FORMAT (1x,a,i3,a,a)
@@ -249,66 +256,6 @@ C     ..
  9050 FORMAT (a,4 (f10.4,2x))
 
       contains
-
-* A semi-portable way to determine the clock granularity
-* Adapted from a code by John Henning of Digital Equipment Corporation
-*
-      INTEGER FUNCTION checktick()
-*     IMPLICIT NONE
-
-C     .. Parameters ..
-      INTEGER n
-      PARAMETER (n=20)
-C     ..
-C     .. Local Scalars ..
-      DOUBLE PRECISION t1,t2
-      INTEGER i,j,jmin
-C     ..
-C     .. Local Arrays ..
-      DOUBLE PRECISION timesfound(n)
-C     ..
-C     .. External Functions ..
-      DOUBLE PRECISION mysecond
-      EXTERNAL mysecond
-C     ..
-C     .. Intrinsic Functions ..
-      INTRINSIC max,min,nint
-C     ..
-      i = 0
-
-   10 t2 = mysecond()
-      IF (t2.EQ.t1) GO TO 10
-
-      t1 = t2
-      i = i + 1
-      timesfound(i) = t1
-      IF (i.LT.n) GO TO 10
-
-      jmin = 1000000
-      DO 20 i = 2,n
-          j = nint((timesfound(i)-timesfound(i-1))*1d6)
-          jmin = min(jmin,max(j,0))
-   20 CONTINUE
-
-      IF (jmin.GT.0) THEN
-          checktick = jmin
-      ELSE
-          PRINT *,'Your clock granularity appears to be less ',
-     $      'than one microsecond'
-          checktick = 1
-      END IF
-      RETURN
-
-*      PRINT 14, timesfound(1)*1d6
-*      DO 20 i=2,n
-*         PRINT 14, timesfound(i)*1d6,
-*     &       nint((timesfound(i)-timesfound(i-1))*1d6)
-*   14    FORMAT (1X, F18.4, 1X, i8)
-*   20 CONTINUE
-
-      END
-
-
 
 
       SUBROUTINE checksums(a,b,c,n,ntimes)
