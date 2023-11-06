@@ -93,40 +93,37 @@
       use, intrinsic :: iso_fortran_env, only : int64
       IMPLICIT NONE
 C     .. Parameters ..
-      INTEGER n,offset,ndim,ntimes
+      INTEGER :: n,offset,ndim,ntimes
       PARAMETER (n=20000000,offset=0,ndim=n+offset,ntimes=10)
 C     ..
 C     .. Local Scalars ..
       DOUBLE PRECISION :: scalar
       integer(int64) :: t64, tic, toc
       integer(int64) :: tick_rate
-      INTEGER j,k,nbpw
-      integer(int64) :: quantum
+      INTEGER ::j,k,nbpw
 C     ..
 C     .. Local Arrays ..
-      DOUBLE PRECISION maxtime(4),mintime(4),avgtime(4),
+      DOUBLE PRECISION :: maxtime(4),mintime(4),avgtime(4),
      $                 times(4,ntimes)
-      INTEGER bytes(4)
-      CHARACTER label(4)*11
+      INTEGER :: bytes(4)
+      CHARACTER(11) ::label(4)
 C     ..
 
 !$    INTEGER, external :: omp_get_num_threads
 C     ..
 C     .. Intrinsic Functions ..
 C
-      INTRINSIC dble,max,min,nint,sqrt
+      INTRINSIC :: dble,max,min,nint,sqrt
 C     ..
 C     .. Arrays in Common ..
       DOUBLE PRECISION, allocatable, dimension(:) :: a, b, c
 C     ..
-C     .. Common blocks ..
-*     COMMON a,b,c
-C     ..
 C     .. Data statements ..
-      DATA avgtime/4*0.0D0/,mintime/4*1.0D+36/,maxtime/4*0.0D0/
-      DATA label/'Copy:      ','Scale:     ','Add:       ',
-     $     'Triad:     '/
-      DATA bytes/2,2,3,3/
+      avgtime = 0
+      mintime = huge(0)
+      maxtime = 0
+      label = ['Copy:      ','Scale:     ','Add:       ','Triad:     ']
+      bytes = [2,2,3,3]
 C     ..
 
 *       --- SETUP --- determine precision and check timing ---
@@ -259,15 +256,15 @@ C     set timing to max precision, typically sub-microsecond
 
 
       SUBROUTINE checksums(a,b,c,n,ntimes)
-*     IMPLICIT NONE
+      IMPLICIT NONE
 C     ..
 C     .. Arguments ..
-      DOUBLE PRECISION a(*),b(*),c(*)
-      INTEGER n,ntimes
+      DOUBLE PRECISION, intent(in), dimension(:) :: a, b, c
+      INTEGER, intent(in) :: n, ntimes
 C     ..
 C     .. Local Scalars ..
-      DOUBLE PRECISION aa,bb,cc,scalar,suma,sumb,sumc,epsilon
-      INTEGER k
+      DOUBLE PRECISION :: aa,bb,cc,scalar,suma,sumb,sumc,epsilon
+      INTEGER :: k
 C     ..
 
 C     Repeat the main loop, but with scalars only.
@@ -293,9 +290,9 @@ C     Now sum up the arrays, excluding the first and last
 C     elements, which are modified using the timing results
 C     to confuse aggressive optimizers.
 
-      suma = 0.0d0
-      sumb = 0.0d0
-      sumc = 0.0d0
+      suma = 0
+      sumb = 0
+      sumc = 0
 !$OMP PARALLEL DO REDUCTION(+:suma,sumb,sumc)
       DO 110 j = 2,n-1
           suma = suma + a(j)
@@ -305,22 +302,26 @@ C     to confuse aggressive optimizers.
 
       epsilon = 1.D-6
 
-      IF (ABS(suma-aa)/suma .GT. epsilon) THEN
+      IF (ABS(suma-aa)/suma > epsilon) THEN
           PRINT *,'Failed Validation on array a()'
           PRINT *,'Target   Sum of a is = ',aa
           PRINT *,'Computed Sum of a is = ',suma
-      ELSEIF (ABS(sumb-bb)/sumb .GT. epsilon) THEN
+          error stop
+      ELSEIF (ABS(sumb-bb)/sumb > epsilon) THEN
           PRINT *,'Failed Validation on array b()'
           PRINT *,'Target   Sum of b is = ',bb
           PRINT *,'Computed Sum of b is = ',sumb
-      ELSEIF (ABS(sumc-cc)/sumc .GT. epsilon) THEN
+          error stop
+      ELSEIF (ABS(sumc-cc)/sumc > epsilon) THEN
           PRINT *,'Failed Validation on array c()'
           PRINT *,'Target   Sum of c is = ',cc
           PRINT *,'Computed Sum of c is = ',sumc
+          error stop
       ELSE
           PRINT *,'Solution Validates!'
       ENDIF
 
-      END
+      END subroutine checksums
+
 
       END program stream
