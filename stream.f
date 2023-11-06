@@ -25,7 +25,7 @@
 *         accordance with the STREAM Run Rules must be clearly
 *         labelled whenever they are published.  Examples of
 *         proper labelling include:
-*         "tuned STREAM benchmark results" 
+*         "tuned STREAM benchmark results"
 *         "based on a variant of the STREAM benchmark code"
 *         Other comparable, clear and reasonable labelling is
 *         acceptable.
@@ -48,7 +48,7 @@
 * Most of the content is currently hosted at:
 *          http://www.cs.virginia.edu/stream/
 *
-* BRIEF INSTRUCTIONS: 
+* BRIEF INSTRUCTIONS:
 *       0) See http://www.cs.virginia.edu/stream/ref.html for details
 *       1) STREAM requires a timing function called mysecond().
 *          Several examples are provided in this directory.
@@ -64,7 +64,7 @@
 *          that makes each array 4x larger than the last-level cache.
 *          The intent is to determine the *best* sustainable bandwidth
 *          available with this simple coding.  Of course, lower values
-*          are usually fairly easy to obtain on cached machines, but 
+*          are usually fairly easy to obtain on cached machines, but
 *          by keeping the test to the *best* results, the answers are
 *          easier to interpret.
 *          You may put the arrays in common or not, at your discretion.
@@ -91,7 +91,7 @@
 *=========================================================================
 *
       PROGRAM stream
-*     IMPLICIT NONE
+      IMPLICIT NONE
 C     .. Parameters ..
       INTEGER n,offset,ndim,ntimes
       PARAMETER (n=20000000,offset=0,ndim=n+offset,ntimes=10)
@@ -108,17 +108,15 @@ C     .. Local Arrays ..
 C     ..
 C     .. External Functions ..
       DOUBLE PRECISION mysecond
-      INTEGER checktick,realsize
-      EXTERNAL mysecond,checktick,realsize
-!$    INTEGER omp_get_num_threads
-!$    EXTERNAL omp_get_num_threads
+
+!$    INTEGER, external :: omp_get_num_threads
 C     ..
 C     .. Intrinsic Functions ..
 C
       INTRINSIC dble,max,min,nint,sqrt
 C     ..
 C     .. Arrays in Common ..
-      DOUBLE PRECISION a(ndim),b(ndim),c(ndim)
+      DOUBLE PRECISION, allocatable, dimension(:) :: a, b, c
 C     ..
 C     .. Common blocks ..
 *     COMMON a,b,c
@@ -132,7 +130,9 @@ C     ..
 
 *       --- SETUP --- determine precision and check timing ---
 
-      nbpw = realsize()
+      allocate(a(ndim), b(ndim), c(ndim))
+
+      nbpw = storage_size(a)/8
 
       PRINT *,'----------------------------------------------'
       PRINT *,'STREAM Version $Revision: 5.6 $'
@@ -247,92 +247,8 @@ C     ..
  9040 FORMAT ('Function',5x,'Rate (MB/s)  Avg time   Min time  Max time'
      $       )
  9050 FORMAT (a,4 (f10.4,2x))
-      END
 
-*-------------------------------------
-* INTEGER FUNCTION dblesize()
-*
-* A semi-portable way to determine the precision of DOUBLE PRECISION
-* in Fortran.
-* Here used to guess how many bytes of storage a DOUBLE PRECISION
-* number occupies.
-*
-      INTEGER FUNCTION realsize()
-*     IMPLICIT NONE
-
-C     .. Local Scalars ..
-      DOUBLE PRECISION result,test
-      INTEGER j,ndigits
-C     ..
-C     .. Local Arrays ..
-      DOUBLE PRECISION ref(30)
-C     ..
-C     .. External Subroutines ..
-      EXTERNAL confuse
-C     ..
-C     .. Intrinsic Functions ..
-      INTRINSIC abs,acos,log10,sqrt
-C     ..
-
-C       Test #1 - compare single(1.0d0+delta) to 1.0d0
-
-   10 DO 20 j = 1,30
-          ref(j) = 1.0d0 + 10.0d0** (-j)
-   20 CONTINUE
-
-      DO 30 j = 1,30
-          test = ref(j)
-          ndigits = j
-          CALL confuse(test,result)
-          IF (test.EQ.1.0D0) THEN
-              GO TO 40
-          END IF
-   30 CONTINUE
-      GO TO 50
-
-   40 WRITE (*,FMT='(a)')
-     $  '----------------------------------------------'
-      WRITE (*,FMT='(1x,a,i2,a)') 'Double precision appears to have ',
-     $  ndigits,' digits of accuracy'
-      IF (ndigits.LE.8) THEN
-          realsize = 4
-      ELSE
-          realsize = 8
-      END IF
-      WRITE (*,FMT='(1x,a,i1,a)') 'Assuming ',realsize,
-     $  ' bytes per DOUBLE PRECISION word'
-      WRITE (*,FMT='(a)')
-     $  '----------------------------------------------'
-      RETURN
-
-   50 PRINT *,'Hmmmm.  I am unable to determine the size.'
-      PRINT *,'Please enter the number of Bytes per DOUBLE PRECISION',
-     $  ' number : '
-      READ (*,FMT=*) realsize
-      IF (realsize.NE.4 .AND. realsize.NE.8) THEN
-          PRINT *,'Your answer ',realsize,' does not make sense.'
-          PRINT *,'Try again.'
-          PRINT *,'Please enter the number of Bytes per ',
-     $      'DOUBLE PRECISION number : '
-          READ (*,FMT=*) realsize
-      END IF
-      PRINT *,'You have manually entered a size of ',realsize,
-     $  ' bytes per DOUBLE PRECISION number'
-      WRITE (*,FMT='(a)')
-     $  '----------------------------------------------'
-      END
-
-      SUBROUTINE confuse(q,r)
-*     IMPLICIT NONE
-C     .. Scalar Arguments ..
-      DOUBLE PRECISION q,r
-C     ..
-C     .. Intrinsic Functions ..
-      INTRINSIC cos
-C     ..
-      r = cos(q)
-      RETURN
-      END
+      contains
 
 * A semi-portable way to determine the clock granularity
 * Adapted from a code by John Henning of Digital Equipment Corporation
@@ -460,3 +376,4 @@ C     to confuse aggressive optimizers.
 
       END
 
+      END program stream
