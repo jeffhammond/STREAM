@@ -232,7 +232,7 @@ C     ..
       WRITE (*,FMT=9040)
       DO 100 j = 1,4
           avgtime(j) = avgtime(j)/dble(ntimes-1)
-          WRITE (*,FMT=9050) label(j),n*bytes(j)*nbpw/mintime(j)/1.0D6,
+          WRITE (*,FMT=9050) label(j),n/1.0D6*bytes(j)*nbpw/mintime(j),
      $      avgtime(j),mintime(j),maxtime(j)
   100 CONTINUE
       PRINT *,'----------------------------------------------------'
@@ -243,9 +243,10 @@ C     ..
  9010 FORMAT (1x,a,i10)
  9020 FORMAT (1x,a,i4,a)
  9030 FORMAT (1x,a,i3,a,a)
- 9040 FORMAT ('Function',5x,'Rate (MB/s)  Avg time   Min time  Max time'
+ 9040 FORMAT ('Function',7x,'Rate (MB/s)',11x,'Avg time',
+     $       9x,'Min time',9x,'Max time'
      $       )
- 9050 FORMAT (a,4 (f10.4,2x))
+ 9050 FORMAT (a,4 (f15.4,2x))
       END
 
 *-------------------------------------
