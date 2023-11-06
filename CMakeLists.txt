@@ -15,7 +15,7 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
-  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-O3;-march=native>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-O3;-march=native;-Werror=line-truncation>")
 elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
   add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-O3;-xHost>")
 endif()
