@@ -43,8 +43,17 @@
 # include <stdio.h>
 # include <math.h>
 # include <float.h>
-# include <sys/time.h>
 
+#ifdef _MSC_VER
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#define ssize_t ptrdiff_t
+#define CLOCK_MONOTONIC 0
+#else
+# include <sys/time.h>
+#endif
+
+#include <time.h>
 /*-----------------------------------------------------------------------
  * INSTRUCTIONS:
  *
@@ -191,7 +200,26 @@ static double	bytes[4] = {
     3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
     };
 
-extern double mysecond();
+#ifdef _MSC_VER
+int clock_gettime(int dummy, struct timespec *spec)
+{
+  /* https://stackoverflow.com/a/31335254 */
+   __int64 wintime;
+   GetSystemTimeAsFileTime((FILETIME*)&wintime);
+   wintime      -=116444736000000000i64;  //1jan1601 to 1jan1970
+   spec->tv_sec  =wintime / 10000000i64;           //seconds
+   spec->tv_nsec =wintime % 10000000i64 *100;      //nano-seconds
+   return 0;
+}
+#endif
+
+double mysecond()
+{
+	struct timespec tic;
+	clock_gettime(CLOCK_MONOTONIC, &tic);
+	return tic.tv_sec + tic.tv_nsec * 1e-9;
+}
+
 extern void checkSTREAMresults();
 #ifdef TUNED
 extern void tuned_STREAM_Copy();
@@ -280,10 +308,11 @@ main()
 	quantum = 1;
     }
 
-    t = mysecond();
+	t = mysecond();
 #pragma omp parallel for
     for (j = 0; j < STREAM_ARRAY_SIZE; j++)
 		a[j] = 2.0E0 * a[j];
+
     t = 1.0E6 * (mysecond() - t);
 
     printf("Each test below will take on the order"
@@ -409,22 +438,6 @@ checktick()
     }
 
 
-
-/* A gettimeofday routine to give access to the wall
-   clock timer on most UNIX-like systems.  */
-
-#include <sys/time.h>
-
-double mysecond()
-{
-        struct timeval tp;
-        struct timezone tzp;
-        int i;
-
-        i = gettimeofday(&tp,&tzp);
-        return ( (double) tp.tv_sec + (double) tp.tv_usec * 1.e-6 );
-}
-
 #ifndef abs
 #define abs(a) ((a) >= 0 ? (a) : -(a))
 #endif
@@ -474,7 +487,7 @@ void checkSTREAMresults ()
 		epsilon = 1.e-13;
 	}
 	else {
-		printf("WEIRD: sizeof(STREAM_TYPE) = %lu\n",sizeof(STREAM_TYPE));
+		printf("WEIRD: sizeof(STREAM_TYPE) = %zu\n",sizeof(STREAM_TYPE));
 		epsilon = 1.e-6;
 	}
 
