@@ -1,0 +1,51 @@
+name: cmake
+
+on:
+  push:
+    paths:
+      - "**.c"
+      - "**.f"
+      - "**/CMakeLists.txt"
+      - ".github/workflows/cmake.yml"
+
+env:
+  CTEST_NO_TESTS_ACTION: error
+
+
+jobs:
+
+  unix:
+    timeout-minutes: 5
+
+    strategy:
+      matrix:
+        cc: [gcc-12, clang]
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      CC: ${{ matrix.cc }}
+      FC: gfortran-12
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - run: cmake -B build
+
+    - run: cmake --build build --parallel
+
+    - run: ctest --test-dir build -V
+
+
+  windows-msvc:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - run: cmake -G "Visual Studio 17 2022" -B build -Dfortran=no
+
+    - run: cmake --build build --parallel --config Release
+
+    - run: ctest --test-dir build -V -C Release

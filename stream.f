@@ -25,7 +25,7 @@
 *         accordance with the STREAM Run Rules must be clearly
 *         labelled whenever they are published.  Examples of
 *         proper labelling include:
-*         "tuned STREAM benchmark results" 
+*         "tuned STREAM benchmark results"
 *         "based on a variant of the STREAM benchmark code"
 *         Other comparable, clear and reasonable labelling is
 *         acceptable.
@@ -48,11 +48,9 @@
 * Most of the content is currently hosted at:
 *          http://www.cs.virginia.edu/stream/
 *
-* BRIEF INSTRUCTIONS: 
+* BRIEF INSTRUCTIONS:
 *       0) See http://www.cs.virginia.edu/stream/ref.html for details
-*       1) STREAM requires a timing function called mysecond().
-*          Several examples are provided in this directory.
-*          "CPU" timers are only allowed for uniprocessor runs.
+*       1) "CPU" timers are only allowed for uniprocessor runs.
 *          "Wall-clock" timers are required for all multiprocessor runs.
 *       2) The STREAM array sizes must be set to size the test.
 *          The value "N" must be chosen so that each of the three
@@ -64,7 +62,7 @@
 *          that makes each array 4x larger than the last-level cache.
 *          The intent is to determine the *best* sustainable bandwidth
 *          available with this simple coding.  Of course, lower values
-*          are usually fairly easy to obtain on cached machines, but 
+*          are usually fairly easy to obtain on cached machines, but
 *          by keeping the test to the *best* results, the answers are
 *          easier to interpret.
 *          You may put the arrays in common or not, at your discretion.
@@ -91,48 +89,51 @@
 *=========================================================================
 *
       PROGRAM stream
-*     IMPLICIT NONE
+
+      use, intrinsic :: iso_fortran_env, only : int64
+      IMPLICIT NONE
 C     .. Parameters ..
-      INTEGER n,offset,ndim,ntimes
+      INTEGER :: n,offset,ndim,ntimes
       PARAMETER (n=20000000,offset=0,ndim=n+offset,ntimes=10)
 C     ..
 C     .. Local Scalars ..
-      DOUBLE PRECISION scalar,t
-      INTEGER j,k,nbpw,quantum
+      DOUBLE PRECISION :: scalar
+      integer(int64) :: t64, tic, toc
+      integer(int64) :: tick_rate
+      INTEGER ::j,k,nbpw
 C     ..
 C     .. Local Arrays ..
-      DOUBLE PRECISION maxtime(4),mintime(4),avgtime(4),
+      DOUBLE PRECISION :: maxtime(4),mintime(4),avgtime(4),
      $                 times(4,ntimes)
-      INTEGER bytes(4)
-      CHARACTER label(4)*11
+      INTEGER :: bytes(4)
+      CHARACTER(11) ::label(4)
 C     ..
-C     .. External Functions ..
-      DOUBLE PRECISION mysecond
-      INTEGER checktick,realsize
-      EXTERNAL mysecond,checktick,realsize
-!$    INTEGER omp_get_num_threads
-!$    EXTERNAL omp_get_num_threads
+
+!$    INTEGER, external :: omp_get_num_threads
 C     ..
 C     .. Intrinsic Functions ..
 C
-      INTRINSIC dble,max,min,nint,sqrt
+      INTRINSIC :: dble,max,min,nint,sqrt
 C     ..
 C     .. Arrays in Common ..
-      DOUBLE PRECISION a(ndim),b(ndim),c(ndim)
-C     ..
-C     .. Common blocks ..
-*     COMMON a,b,c
+      DOUBLE PRECISION, allocatable, dimension(:) :: a, b, c
 C     ..
 C     .. Data statements ..
-      DATA avgtime/4*0.0D0/,mintime/4*1.0D+36/,maxtime/4*0.0D0/
-      DATA label/'Copy:      ','Scale:     ','Add:       ',
-     $     'Triad:     '/
-      DATA bytes/2,2,3,3/
+      avgtime = 0
+      mintime = huge(0)
+      maxtime = 0
+      label = ['Copy:      ','Scale:     ','Add:       ','Triad:     ']
+      bytes = [2,2,3,3]
 C     ..
 
 *       --- SETUP --- determine precision and check timing ---
 
-      nbpw = realsize()
+      allocate(a(ndim), b(ndim), c(ndim))
+
+      call system_clock(COUNT_RATE=tick_rate)
+C     set timing to max precision, typically sub-microsecond
+
+      nbpw = storage_size(a)/8
 
       PRINT *,'----------------------------------------------'
       PRINT *,'STREAM Version $Revision: 5.6 $'
@@ -164,62 +165,66 @@ C     ..
           b(j) = 0.5D0
           c(j) = 0.0D0
    10 CONTINUE
-      t = mysecond()
+      call system_clock(count=tic)
 !$OMP PARALLEL DO
       DO 20 j = 1,n
           a(j) = 0.5d0*a(j)
    20 CONTINUE
-      t = mysecond() - t
+      call system_clock(count=toc)
+      t64 = toc - tic
       PRINT *,'----------------------------------------------------'
-      quantum = checktick()
-      WRITE (*,FMT=9000)
-     $  'Your clock granularity/precision appears to be ',quantum,
-     $  ' microseconds'
+
+      print '(a,f10.3)','Clock granularity/precision (microseconds):',
+     &   1/dble(tick_rate) * 1e6
       PRINT *,'----------------------------------------------------'
 
 *       --- MAIN LOOP --- repeat test cases NTIMES times ---
       scalar = 0.5d0*a(1)
       DO 70 k = 1,ntimes
 
-          t = mysecond()
-          a(1) = a(1) + t
+          call system_clock(count=tic)
+          a(1) = a(1) + tic
 !$OMP PARALLEL DO
           DO 30 j = 1,n
               c(j) = a(j)
    30     CONTINUE
-          t = mysecond() - t
-          c(n) = c(n) + t
-          times(1,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          c(n) = c(n) + t64
+          times(1,k) = t64 / dble(tick_rate)
 
-          t = mysecond()
-          c(1) = c(1) + t
+          call system_clock(count=tic)
+          c(1) = c(1) + tic
 !$OMP PARALLEL DO
           DO 40 j = 1,n
               b(j) = scalar*c(j)
    40     CONTINUE
-          t = mysecond() - t
-          b(n) = b(n) + t
-          times(2,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          b(n) = b(n) + t64
+          times(2,k) = t64 / dble(tick_rate)
 
-          t = mysecond()
-          a(1) = a(1) + t
+          call system_clock(count=tic)
+          a(1) = a(1) + tic
 !$OMP PARALLEL DO
           DO 50 j = 1,n
               c(j) = a(j) + b(j)
    50     CONTINUE
-          t = mysecond() - t
-          c(n) = c(n) + t
-          times(3,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          c(n) = c(n) + t64
+          times(3,k) = t64 / dble(tick_rate)
 
-          t = mysecond()
-          b(1) = b(1) + t
+          call system_clock(count=tic)
+          b(1) = b(1) + tic
 !$OMP PARALLEL DO
           DO 60 j = 1,n
               a(j) = b(j) + scalar*c(j)
    60     CONTINUE
-          t = mysecond() - t
-          a(n) = a(n) + t
-          times(4,k) = t
+          call system_clock(count=toc)
+          t64 = toc - tic
+          a(n) = a(n) + t64
+          times(4,k) = t64 / dble(tick_rate)
    70 CONTINUE
 
 *       --- SUMMARY ---
@@ -240,171 +245,26 @@ C     ..
       CALL checksums (a,b,c,n,ntimes)
       PRINT *,'----------------------------------------------------'
 
- 9000 FORMAT (1x,a,i6,a)
  9010 FORMAT (1x,a,i10)
  9020 FORMAT (1x,a,i4,a)
  9030 FORMAT (1x,a,i3,a,a)
  9040 FORMAT ('Function',5x,'Rate (MB/s)  Avg time   Min time  Max time'
      $       )
  9050 FORMAT (a,4 (f10.4,2x))
-      END
 
-*-------------------------------------
-* INTEGER FUNCTION dblesize()
-*
-* A semi-portable way to determine the precision of DOUBLE PRECISION
-* in Fortran.
-* Here used to guess how many bytes of storage a DOUBLE PRECISION
-* number occupies.
-*
-      INTEGER FUNCTION realsize()
-*     IMPLICIT NONE
-
-C     .. Local Scalars ..
-      DOUBLE PRECISION result,test
-      INTEGER j,ndigits
-C     ..
-C     .. Local Arrays ..
-      DOUBLE PRECISION ref(30)
-C     ..
-C     .. External Subroutines ..
-      EXTERNAL confuse
-C     ..
-C     .. Intrinsic Functions ..
-      INTRINSIC abs,acos,log10,sqrt
-C     ..
-
-C       Test #1 - compare single(1.0d0+delta) to 1.0d0
-
-   10 DO 20 j = 1,30
-          ref(j) = 1.0d0 + 10.0d0** (-j)
-   20 CONTINUE
-
-      DO 30 j = 1,30
-          test = ref(j)
-          ndigits = j
-          CALL confuse(test,result)
-          IF (test.EQ.1.0D0) THEN
-              GO TO 40
-          END IF
-   30 CONTINUE
-      GO TO 50
-
-   40 WRITE (*,FMT='(a)')
-     $  '----------------------------------------------'
-      WRITE (*,FMT='(1x,a,i2,a)') 'Double precision appears to have ',
-     $  ndigits,' digits of accuracy'
-      IF (ndigits.LE.8) THEN
-          realsize = 4
-      ELSE
-          realsize = 8
-      END IF
-      WRITE (*,FMT='(1x,a,i1,a)') 'Assuming ',realsize,
-     $  ' bytes per DOUBLE PRECISION word'
-      WRITE (*,FMT='(a)')
-     $  '----------------------------------------------'
-      RETURN
-
-   50 PRINT *,'Hmmmm.  I am unable to determine the size.'
-      PRINT *,'Please enter the number of Bytes per DOUBLE PRECISION',
-     $  ' number : '
-      READ (*,FMT=*) realsize
-      IF (realsize.NE.4 .AND. realsize.NE.8) THEN
-          PRINT *,'Your answer ',realsize,' does not make sense.'
-          PRINT *,'Try again.'
-          PRINT *,'Please enter the number of Bytes per ',
-     $      'DOUBLE PRECISION number : '
-          READ (*,FMT=*) realsize
-      END IF
-      PRINT *,'You have manually entered a size of ',realsize,
-     $  ' bytes per DOUBLE PRECISION number'
-      WRITE (*,FMT='(a)')
-     $  '----------------------------------------------'
-      END
-
-      SUBROUTINE confuse(q,r)
-*     IMPLICIT NONE
-C     .. Scalar Arguments ..
-      DOUBLE PRECISION q,r
-C     ..
-C     .. Intrinsic Functions ..
-      INTRINSIC cos
-C     ..
-      r = cos(q)
-      RETURN
-      END
-
-* A semi-portable way to determine the clock granularity
-* Adapted from a code by John Henning of Digital Equipment Corporation
-*
-      INTEGER FUNCTION checktick()
-*     IMPLICIT NONE
-
-C     .. Parameters ..
-      INTEGER n
-      PARAMETER (n=20)
-C     ..
-C     .. Local Scalars ..
-      DOUBLE PRECISION t1,t2
-      INTEGER i,j,jmin
-C     ..
-C     .. Local Arrays ..
-      DOUBLE PRECISION timesfound(n)
-C     ..
-C     .. External Functions ..
-      DOUBLE PRECISION mysecond
-      EXTERNAL mysecond
-C     ..
-C     .. Intrinsic Functions ..
-      INTRINSIC max,min,nint
-C     ..
-      i = 0
-
-   10 t2 = mysecond()
-      IF (t2.EQ.t1) GO TO 10
-
-      t1 = t2
-      i = i + 1
-      timesfound(i) = t1
-      IF (i.LT.n) GO TO 10
-
-      jmin = 1000000
-      DO 20 i = 2,n
-          j = nint((timesfound(i)-timesfound(i-1))*1d6)
-          jmin = min(jmin,max(j,0))
-   20 CONTINUE
-
-      IF (jmin.GT.0) THEN
-          checktick = jmin
-      ELSE
-          PRINT *,'Your clock granularity appears to be less ',
-     $      'than one microsecond'
-          checktick = 1
-      END IF
-      RETURN
-
-*      PRINT 14, timesfound(1)*1d6
-*      DO 20 i=2,n
-*         PRINT 14, timesfound(i)*1d6,
-*     &       nint((timesfound(i)-timesfound(i-1))*1d6)
-*   14    FORMAT (1X, F18.4, 1X, i8)
-*   20 CONTINUE
-
-      END
-
-
+      contains
 
 
       SUBROUTINE checksums(a,b,c,n,ntimes)
-*     IMPLICIT NONE
+      IMPLICIT NONE
 C     ..
 C     .. Arguments ..
-      DOUBLE PRECISION a(*),b(*),c(*)
-      INTEGER n,ntimes
+      DOUBLE PRECISION, intent(in), dimension(:) :: a, b, c
+      INTEGER, intent(in) :: n, ntimes
 C     ..
 C     .. Local Scalars ..
-      DOUBLE PRECISION aa,bb,cc,scalar,suma,sumb,sumc,epsilon
-      INTEGER k
+      DOUBLE PRECISION :: aa,bb,cc,scalar,suma,sumb,sumc,epsilon
+      INTEGER :: k
 C     ..
 
 C     Repeat the main loop, but with scalars only.
@@ -430,9 +290,9 @@ C     Now sum up the arrays, excluding the first and last
 C     elements, which are modified using the timing results
 C     to confuse aggressive optimizers.
 
-      suma = 0.0d0
-      sumb = 0.0d0
-      sumc = 0.0d0
+      suma = 0
+      sumb = 0
+      sumc = 0
 !$OMP PARALLEL DO REDUCTION(+:suma,sumb,sumc)
       DO 110 j = 2,n-1
           suma = suma + a(j)
@@ -442,21 +302,26 @@ C     to confuse aggressive optimizers.
 
       epsilon = 1.D-6
 
-      IF (ABS(suma-aa)/suma .GT. epsilon) THEN
+      IF (ABS(suma-aa)/suma > epsilon) THEN
           PRINT *,'Failed Validation on array a()'
           PRINT *,'Target   Sum of a is = ',aa
           PRINT *,'Computed Sum of a is = ',suma
-      ELSEIF (ABS(sumb-bb)/sumb .GT. epsilon) THEN
+          error stop
+      ELSEIF (ABS(sumb-bb)/sumb > epsilon) THEN
           PRINT *,'Failed Validation on array b()'
           PRINT *,'Target   Sum of b is = ',bb
           PRINT *,'Computed Sum of b is = ',sumb
-      ELSEIF (ABS(sumc-cc)/sumc .GT. epsilon) THEN
+          error stop
+      ELSEIF (ABS(sumc-cc)/sumc > epsilon) THEN
           PRINT *,'Failed Validation on array c()'
           PRINT *,'Target   Sum of c is = ',cc
           PRINT *,'Computed Sum of c is = ',sumc
+          error stop
       ELSE
           PRINT *,'Solution Validates!'
       ENDIF
 
-      END
+      END subroutine checksums
 
+
+      END program stream
