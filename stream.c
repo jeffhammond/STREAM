@@ -41,11 +41,19 @@
 /*  5. Absolutely no warranty is expressed or implied.                   */
 /*-----------------------------------------------------------------------*/
 # include <stdio.h>
-# include <unistd.h>
 # include <math.h>
 # include <float.h>
 # include <limits.h>
+
+#ifndef _WIN32
 # include <sys/time.h>
+# include <unistd.h>
+#else
+# include <BaseTsd.h> // for SSIZE_T
+typedef SSIZE_T ssize_t;
+# define WIN32_LEAN_AND_MEAN
+# include <Windows.h>
+#endif
 
 /*-----------------------------------------------------------------------
  * INSTRUCTIONS:
@@ -415,16 +423,20 @@ checktick()
 /* A gettimeofday routine to give access to the wall
    clock timer on most UNIX-like systems.  */
 
-#include <sys/time.h>
-
 double mysecond()
 {
+#ifndef _WIN32
         struct timeval tp;
         struct timezone tzp;
         int i;
 
         i = gettimeofday(&tp,&tzp);
         return ( (double) tp.tv_sec + (double) tp.tv_usec * 1.e-6 );
+#else
+        __int64 t;
+        GetSystemTimeAsFileTime((FILETIME*)&t);
+        return ((double)(t - 116444736000000000LL)) / 10000000.0;
+#endif
 }
 
 #ifndef abs
