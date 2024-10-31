@@ -1,9 +1,14 @@
 CC = gcc
-CFLAGS = -O2 -fopenmp
-
 FC = gfortran
+CFLAGS = -O2 -fopenmp \
+		-DSTREAM_ARRAY_SIZE=$(size) \
+		-DNTIMES=$(ntime) \
+		-DOFFSET=$(offset)
 FFLAGS = -O2 -fopenmp
 
+size ?= 10000000
+ntime ?= 20
+offset ?= 0
 TARGET = stream_f stream_c
 
 all: $(TARGET)
@@ -15,10 +20,10 @@ mysecond.o: mysecond.c
 	$(CC) $(CFLAGS) -c mysecond.c
 
 stream_f: stream.o mysecond.o
-	$(FC) $(FFLAGS) stream.o mysecond.o -o stream_f
+	$(FC) $(FFLAGS) stream.o mysecond.o -o $@
 
 stream_c: stream.c
-	$(CC) $(CFLAGS) stream.c -o stream_c
+	$(CC) $(CFLAGS) stream.c -o $@
 
 clean:
 	rm -f $(TARGET) *.o
