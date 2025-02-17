@@ -71,7 +71,7 @@ a number of long-awaited improvements have been made:
   This mechanism could also be used to change to 
   non-floating-point types, but several "printf"
   statements would need to have their formats changed
-  to accomodate the modified data type.
+  to accommodate the modified data type.
 * Some small changes in output, including printing
   array sizes is GiB as well as MiB.
 * Change to the default output format to print fewer
